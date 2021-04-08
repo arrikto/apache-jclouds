@@ -49,7 +49,8 @@ public class AzureStorageUtils {
             HttpResponse response, InputStream content) throws HttpException {
       AzureStorageError error = factory.create(errorHandlerProvider.get()).parse(content);
       error.setRequestId(response.getFirstHeaderOrNull(AzureStorageHeaders.REQUEST_ID));
-      if ("AuthenticationFailed".equals(error.getCode())) {
+      // Azure Identity credentials are used as a Bearer token instead of signing the request
+      if ("AuthenticationFailed".equals(error.getCode()) && signer.canSignRequest()) {
          // this signature is incorrect for URLs from AzureBlobRequestSigner
          error.setStringSigned(signer.createStringToSign(command.getCurrentRequest()));
          error.setSignature(signer.signString(error.getStringSigned()));

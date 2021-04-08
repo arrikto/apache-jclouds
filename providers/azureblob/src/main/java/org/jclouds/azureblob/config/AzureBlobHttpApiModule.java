@@ -80,6 +80,14 @@ public class AzureBlobHttpApiModule extends HttpApiModule<AzureBlobClient> {
    @Provides 
    protected AuthMethod getAuthMethod(@org.jclouds.location.Provider Supplier<Credentials> creds) {
       String credential = creds.get().credential;
+      /*
+       * If no credentials have been provided, attempt to retrieve Azure
+       * Identity credentials from the instance metadata service.
+       */
+      if (credential == null || credential.isEmpty()) {
+         return AuthMethod.AZURE_IDENTITY;
+      }
+
       String formattedCredential = credential.startsWith("?") ? credential.substring(1) : credential;
       List<String> required = ImmutableList.of("sv", "sig"); 
       try {
