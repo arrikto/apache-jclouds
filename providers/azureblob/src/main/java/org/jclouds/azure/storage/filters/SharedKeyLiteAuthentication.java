@@ -22,11 +22,19 @@ import static org.jclouds.crypto.Macs.asByteProcessor;
 import static org.jclouds.util.Patterns.NEWLINE_PATTERN;
 import static org.jclouds.util.Strings2.toInputStream;
 
+import java.io.InputStream;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URL;
+import java.net.URLEncoder;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Scanner;
 
 import javax.annotation.Resource;
 import javax.inject.Inject;
@@ -49,6 +57,8 @@ import org.jclouds.http.Uris.UriBuilder;
 import org.jclouds.http.internal.SignatureWire;
 import org.jclouds.logging.Logger;
 import org.jclouds.util.Strings2;
+
+import org.json.JSONObject;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
@@ -106,10 +116,19 @@ public class SharedKeyLiteAuthentication implements HttpRequestFilter {
     * is used and applies the right filtering.  
     */
    public HttpRequest filter(HttpRequest request) throws HttpException {
-      if (authMethod == AuthMethod.SHARED_ACCESS_SIGNATURE) {
-         request = filterSAS(request, credential);
-      } else {
+      switch (authMethod) {
+      case SHARED_KEY:
+         signatureLog.debug("Authenticating via Shared Key");
          request = filterKey(request);
+         break;
+      case SHARED_ACCESS_SIGNATURE:
+         signatureLog.debug("Authenticating via Shared Access Signature");
+         request = filterSAS(request, credential);
+         break;
+      case AZURE_IDENTITY:
+         signatureLog.debug("Authenticating via Azure Identity");
+         request = filterIdentity(request);
+         break;
       }
       utils.logRequest(signatureLog, request, "<<");
       return request;
@@ -153,7 +172,68 @@ public class SharedKeyLiteAuthentication implements HttpRequestFilter {
             .replaceHeader(HttpHeaders.AUTHORIZATION, "SharedKeyLite " + creds.get().identity + ":" + signature)
             .build();
    }
-   
+
+   /**
+    * This filter is applied when Azure Identity authentication is used.
+    */
+   public HttpRequest filterIdentity(HttpRequest request) throws HttpException {
+      request = replaceDateHeader(request);
+      String token = getAzureIdentityCredential();
+      return request.toBuilder()
+                    .addHeader(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .replaceHeader("x-ms-version", "2017-11-09")
+                    .build();
+   }
+
+   private String getAzureIdentityCredential() throws HttpException {
+      String query;
+      String responseBody;
+      URL URLConnection;
+      InputStream responseStream;
+
+      /* Format the query parameters */
+      signatureLog.trace("Formatting query parameters");
+      try {
+         query = String.format("?api-version=%s&resource=%s",
+            URLEncoder.encode("2018-02-01", "UTF-8"),
+            URLEncoder.encode("https://storage.azure.com/", "UTF-8"));
+      } catch (UnsupportedEncodingException e) {
+         throw new HttpException("Failed to UTF-8 encode query parameters:", e);
+      }
+
+      /* Format the URL */
+      signatureLog.trace("Creating the instance metadata OAuth2 token URL");
+      String url = "http://169.254.169.254/metadata/identity/oauth2/token";
+      try {
+         URLConnection = new URL(url + query);
+      } catch (MalformedURLException e) {
+         throw new HttpException("Failed to format instance metadata URL:", e);
+      }
+
+      /* Perform the request */
+      signatureLog.info("Retrieving Azure Identity credentials from URL: %s", URLConnection);
+      try {
+         HttpURLConnection connection = (HttpURLConnection) URLConnection.openConnection();
+         connection.setRequestProperty("Metadata", "true");
+         responseStream = connection.getInputStream();
+      } catch (IOException e) {
+         throw new HttpException("Failed to retrieve Azure Identity credentials:", e);
+      }
+
+      /* Retrieve the response body */
+      signatureLog.trace("Parsing the token from the response body");
+      try (Scanner scanner = new Scanner(responseStream)) {
+         responseBody = scanner.useDelimiter("\\A").next();
+      }
+
+      /* Parse the response to retrieve the token */
+      JSONObject obj = new JSONObject(responseBody);
+      String token = obj.getString("access_token");
+      signatureLog.info("Successfully retrieved Azure Identity credentials");
+
+      return token;
+   }
+
    /**
     * this method removes Authorisation header, since it is not needed for SAS Authentication 
     */
@@ -182,6 +262,13 @@ public class SharedKeyLiteAuthentication implements HttpRequestFilter {
       }
       return result;
    } 
+
+   /**
+    * Whether the authentication method supports signing the request.
+    */
+   public boolean canSignRequest() {
+      return authMethod != AuthMethod.AZURE_IDENTITY;
+   }
 
    public String createStringToSign(HttpRequest request) {
       utils.logRequest(signatureLog, request, ">>");

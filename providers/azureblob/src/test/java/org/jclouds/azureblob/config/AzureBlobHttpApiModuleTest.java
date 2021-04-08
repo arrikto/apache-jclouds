@@ -30,6 +30,7 @@ public class AzureBlobHttpApiModuleTest {
    public static Object[][] tokens() {
       AuthMethod key = AuthMethod.SHARED_KEY;
       AuthMethod sas = AuthMethod.SHARED_ACCESS_SIGNATURE;
+      AuthMethod aid = AuthMethod.AZURE_IDENTITY;
       return new Object[][]{
          {key, "sv=2018-03-28&se=2019-02-14T11:12:13Z"},
          {key, "sv=2018-03-28&se=2019-02-14T11:12:13Z&sp=abc&st=2019-01-20T11:12:13Z"},
@@ -39,7 +40,7 @@ public class AzureBlobHttpApiModuleTest {
          {key, "sva=swajak&sta=stancyja&spa=spakoj&sea=mora&sig=podpis"},
          {sas, "sv=2018-03-28&ss=b&srt=sco&sp=r&se=2019-02-13T17:03:09Z&st=2019-02-13T09:03:09Z&spr=https&sig=wNkWK%2GURTjHWhtqG6Q2Gu%2Qu%3FPukW6N4%2FIH4Mr%2F%2FO42M%3D"},
          {sas, "sp=rl&st=2019-02-14T08:50:26Z&se=2019-02-15T08:50:26Z&sv=2018-03-28&sig=Ukow8%2GtpQpAiVZBLcWp1%2RSpFq928MAqzp%2BdrdregaB6%3D&sr=b"},
-         {key, ""},
+         {aid, ""},
          {sas, "sig=Ukow8%2GtpQpAiVZBLcWp1%2RSpFq928MAqzp%2BdrdregaB6%3D\u0026sv=2018-03-28"}
      };
    }

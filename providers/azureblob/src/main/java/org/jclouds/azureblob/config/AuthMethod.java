@@ -22,5 +22,6 @@ package org.jclouds.azureblob.config;
  */
 public enum AuthMethod {
    SHARED_KEY,
-   SHARED_ACCESS_SIGNATURE
+   SHARED_ACCESS_SIGNATURE,
+   AZURE_IDENTITY
 }
