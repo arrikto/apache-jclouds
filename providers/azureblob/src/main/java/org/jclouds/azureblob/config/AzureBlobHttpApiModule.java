@@ -76,17 +76,21 @@ public class AzureBlobHttpApiModule extends HttpApiModule<AzureBlobClient> {
    /** 
     * checks which Authentication type is used 
     */
-   @Named("sasAuth")
+   @Named("authMethod")
    @Provides 
-   protected boolean authSAS(@org.jclouds.location.Provider Supplier<Credentials> creds) {
+   protected AuthMethod getAuthMethod(@org.jclouds.location.Provider Supplier<Credentials> creds) {
       String credential = creds.get().credential;
       String formattedCredential = credential.startsWith("?") ? credential.substring(1) : credential;
       List<String> required = ImmutableList.of("sv", "sig"); 
       try {
          Map<String, String> tokens = Splitter.on('&').withKeyValueSeparator('=').split(formattedCredential);
-         return all(required, in(tokens.keySet()));
+         if (all(required, in(tokens.keySet()))) {
+            return AuthMethod.SHARED_ACCESS_SIGNATURE;
+         } else {
+            return AuthMethod.SHARED_KEY;
+         }
       } catch (Exception ex) {
-         return false;
+         return AuthMethod.SHARED_KEY;
       }
    }
 

@@ -28,24 +28,26 @@ public class AzureBlobHttpApiModuleTest {
 
    @DataProvider(name = "auth-sas-tokens")
    public static Object[][] tokens() {
+      AuthMethod key = AuthMethod.SHARED_KEY;
+      AuthMethod sas = AuthMethod.SHARED_ACCESS_SIGNATURE;
       return new Object[][]{
-         {false, "sv=2018-03-28&se=2019-02-14T11:12:13Z"}, 
-         {false, "sv=2018-03-28&se=2019-02-14T11:12:13Z&sp=abc&st=2019-01-20T11:12:13Z"}, 
-         {false, "u2iAP01ARTewyK/MhOM1d1ASPpjqclkldsdkljfas2kfjkh895ssfslkjpXKfhg=="}, 
-         {false, "sadf;gjkhflgjkhfdlkfdljghskldjghlfdghw4986754ltjkghdlfkjghst;lyho56[09y7poinh"}, 
-         {false, "a=apple&b=banana&c=cucumber&d=diet"}, 
-         {false, "sva=swajak&sta=stancyja&spa=spakoj&sea=mora&sig=podpis"}, 
-         {true, "sv=2018-03-28&ss=b&srt=sco&sp=r&se=2019-02-13T17:03:09Z&st=2019-02-13T09:03:09Z&spr=https&sig=wNkWK%2GURTjHWhtqG6Q2Gu%2Qu%3FPukW6N4%2FIH4Mr%2F%2FO42M%3D"}, 
-         {true, "sp=rl&st=2019-02-14T08:50:26Z&se=2019-02-15T08:50:26Z&sv=2018-03-28&sig=Ukow8%2GtpQpAiVZBLcWp1%2RSpFq928MAqzp%2BdrdregaB6%3D&sr=b"}, 
-         {false, ""},
-         {true, "sig=Ukow8%2GtpQpAiVZBLcWp1%2RSpFq928MAqzp%2BdrdregaB6%3D\u0026sv=2018-03-28"}
+         {key, "sv=2018-03-28&se=2019-02-14T11:12:13Z"},
+         {key, "sv=2018-03-28&se=2019-02-14T11:12:13Z&sp=abc&st=2019-01-20T11:12:13Z"},
+         {key, "u2iAP01ARTewyK/MhOM1d1ASPpjqclkldsdkljfas2kfjkh895ssfslkjpXKfhg=="},
+         {key, "sadf;gjkhflgjkhfdlkfdljghskldjghlfdghw4986754ltjkghdlfkjghst;lyho56[09y7poinh"},
+         {key, "a=apple&b=banana&c=cucumber&d=diet"},
+         {key, "sva=swajak&sta=stancyja&spa=spakoj&sea=mora&sig=podpis"},
+         {sas, "sv=2018-03-28&ss=b&srt=sco&sp=r&se=2019-02-13T17:03:09Z&st=2019-02-13T09:03:09Z&spr=https&sig=wNkWK%2GURTjHWhtqG6Q2Gu%2Qu%3FPukW6N4%2FIH4Mr%2F%2FO42M%3D"},
+         {sas, "sp=rl&st=2019-02-14T08:50:26Z&se=2019-02-15T08:50:26Z&sv=2018-03-28&sig=Ukow8%2GtpQpAiVZBLcWp1%2RSpFq928MAqzp%2BdrdregaB6%3D&sr=b"},
+         {key, ""},
+         {sas, "sig=Ukow8%2GtpQpAiVZBLcWp1%2RSpFq928MAqzp%2BdrdregaB6%3D\u0026sv=2018-03-28"}
      };
    }
 
    @Test(dataProvider = "auth-sas-tokens") 
-   void testAuthSasNonSufficientParametersSvSe(boolean expected, String credential){
+   void testAuthSasNonSufficientParametersSvSe(AuthMethod expected, String credential){
       AzureBlobHttpApiModule module = new AzureBlobHttpApiModule();
       Credentials creds = new Credentials("identity", credential);
-      assertEquals(module.authSAS(Suppliers.ofInstance(creds)), expected);
+      assertEquals(module.getAuthMethod(Suppliers.ofInstance(creds)), expected);
    }
 }

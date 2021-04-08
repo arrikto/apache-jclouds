@@ -28,6 +28,7 @@ import javax.inject.Singleton;
 
 import org.jclouds.azure.storage.filters.SharedKeyLiteAuthentication;
 import org.jclouds.azure.storage.util.storageurl.StorageUrlSupplier;
+import org.jclouds.azureblob.config.AuthMethod;
 import org.jclouds.blobstore.BlobRequestSigner;
 import org.jclouds.blobstore.domain.Blob;
 import org.jclouds.blobstore.functions.BlobToHttpGetOptions;
@@ -56,13 +57,14 @@ public class AzureBlobRequestSigner implements BlobRequestSigner {
    private final DateService dateService;
    private final SharedKeyLiteAuthentication auth;
    private final String credential;
-   private final boolean isSAS;
+   private final AuthMethod authMethod;
 
    @Inject
    public AzureBlobRequestSigner(
          BlobToHttpGetOptions blob2HttpGetOptions, @TimeStamp Provider<String> timeStampProvider,
          DateService dateService, SharedKeyLiteAuthentication auth,
-         @org.jclouds.location.Provider Supplier<Credentials> creds, @Named("sasAuth") boolean sasAuthentication,
+         @org.jclouds.location.Provider Supplier<Credentials> creds,
+         @Named("authMethod") AuthMethod authMethod,
          StorageUrlSupplier storageUriSupplier)
          throws SecurityException, NoSuchMethodException {
       this.identity = creds.get().identity;
@@ -72,7 +74,7 @@ public class AzureBlobRequestSigner implements BlobRequestSigner {
       this.timeStampProvider = checkNotNull(timeStampProvider, "timeStampProvider");
       this.dateService = checkNotNull(dateService, "dateService");
       this.auth = auth;
-      this.isSAS = sasAuthentication;
+      this.authMethod = authMethod;
    }
 
    @Override
@@ -198,7 +200,7 @@ public class AzureBlobRequestSigner implements BlobRequestSigner {
     * modified sign() method, which acts depending on the Auth input. 
     */
    public HttpRequest sign(String method, String container, String name, @Nullable GetOptions options, long expires, @Nullable Long contentLength, @Nullable String contentType) {
-      if (isSAS) {
+      if (authMethod == AuthMethod.SHARED_ACCESS_SIGNATURE) {
          return signSAS(method, container, name, options, expires, contentLength, contentType);
       }
       return signKey(method, container, name, options, expires, contentLength, contentType);
