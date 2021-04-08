@@ -26,6 +26,7 @@ import org.jclouds.azureblob.AzureBlobClient;
 import org.jclouds.azureblob.blobstore.AzureBlobRequestSigner;
 import org.jclouds.azureblob.blobstore.AzureBlobStore;
 import org.jclouds.azureblob.config.InsufficientAccessRightsException;
+import org.jclouds.azureblob.config.AuthMethod;
 import org.jclouds.azureblob.domain.PublicAccess;
 import org.jclouds.blobstore.BlobRequestSigner;
 import org.jclouds.blobstore.BlobStore;
@@ -46,12 +47,12 @@ public class AzureBlobStoreContextModule extends AbstractModule {
 
    @Provides
    @Singleton
-   protected final LoadingCache<String, PublicAccess> containerAcls(final AzureBlobClient client, @Named("sasAuth") final boolean sasAuthentication) {
+   protected final LoadingCache<String, PublicAccess> containerAcls(final AzureBlobClient client, @Named("authMethod") final AuthMethod authMethod) {
       return CacheBuilder.newBuilder().expireAfterWrite(30, TimeUnit.SECONDS).build(
                new CacheLoader<String, PublicAccess>() {
                   @Override
                   public PublicAccess load(String container) throws CacheLoader.InvalidCacheLoadException {
-                     if (!sasAuthentication) {
+                     if (authMethod == AuthMethod.SHARED_KEY) {
                         return client.getPublicAccessForContainer(container);
                      }
                      throw new InsufficientAccessRightsException("SAS Authentication does not support getAcl and setAcl calls.");

@@ -36,6 +36,7 @@ import javax.inject.Singleton;
 
 import org.jclouds.Constants;
 import org.jclouds.azure.storage.util.storageurl.StorageUrlSupplier;
+import org.jclouds.azureblob.config.AuthMethod;
 import org.jclouds.crypto.Crypto;
 import org.jclouds.date.TimeStamp;
 import org.jclouds.domain.Credentials;
@@ -79,7 +80,7 @@ public class SharedKeyLiteAuthentication implements HttpRequestFilter {
    private final String credential;
    private final HttpUtils utils;
    private final URI storageUrl;
-   private final boolean isSAS;
+   private final AuthMethod authMethod;
 
    @Resource
    @Named(Constants.LOGGER_SIGNATURE)
@@ -88,7 +89,7 @@ public class SharedKeyLiteAuthentication implements HttpRequestFilter {
    @Inject
    public SharedKeyLiteAuthentication(SignatureWire signatureWire,
          @org.jclouds.location.Provider Supplier<Credentials> creds, @TimeStamp Provider<String> timeStampProvider,
-         Crypto crypto, HttpUtils utils, @Named("sasAuth") boolean sasAuthentication, 
+         Crypto crypto, HttpUtils utils, @Named("authMethod") AuthMethod authMethod,
          StorageUrlSupplier storageUrlSupplier) {
       this.crypto = crypto;
       this.utils = utils;
@@ -97,7 +98,7 @@ public class SharedKeyLiteAuthentication implements HttpRequestFilter {
       this.creds = creds;
       this.credential = creds.get().credential;
       this.timeStampProvider = timeStampProvider;
-      this.isSAS = sasAuthentication;
+      this.authMethod = authMethod;
    }
    
    /** 
@@ -105,7 +106,11 @@ public class SharedKeyLiteAuthentication implements HttpRequestFilter {
     * is used and applies the right filtering.  
     */
    public HttpRequest filter(HttpRequest request) throws HttpException {
-      request = this.isSAS ? filterSAS(request, this.credential) : filterKey(request);
+      if (authMethod == AuthMethod.SHARED_ACCESS_SIGNATURE) {
+         request = filterSAS(request, credential);
+      } else {
+         request = filterKey(request);
+      }
       utils.logRequest(signatureLog, request, "<<");
       return request;
    }
