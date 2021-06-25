@@ -32,6 +32,7 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Date;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -92,6 +93,9 @@ public class SharedKeyLiteAuthentication implements HttpRequestFilter {
    private final HttpUtils utils;
    private final URI storageUrl;
    private final AuthMethod authMethod;
+   private String accessToken;
+   private long accessTokenExpiresOn;
+   private final long accessTokenExpirationMargin = 30;
 
    @Resource
    @Named(Constants.LOGGER_SIGNATURE)
@@ -110,6 +114,8 @@ public class SharedKeyLiteAuthentication implements HttpRequestFilter {
       this.credential = creds.get().credential;
       this.timeStampProvider = timeStampProvider;
       this.authMethod = authMethod;
+      this.accessToken = null;
+      this.accessTokenExpiresOn = 0;
    }
    
    /** 
@@ -187,8 +193,35 @@ public class SharedKeyLiteAuthentication implements HttpRequestFilter {
    }
 
    private String getAzureIdentityCredential() throws HttpException {
+      if (accessToken != null) {
+         Date now = new Date();
+         long remaining = accessTokenExpiresOn - now.getTime() / 1000L;
+         if (remaining > accessTokenExpirationMargin) {
+            signatureLog.info("Cached Azure Identity credentials expire in %s"
+               + " seconds, will use the cached credentials", remaining);
+            return accessToken;
+         } else if (remaining <= 0) {
+            signatureLog.info("Cached Azure Identity credentials have expired,"
+               + " will retrieve new credentials");
+         } else {
+            signatureLog.info("Cached Azure Identity credentials expire in %s"
+               + " seconds, will retrieve new credentials", remaining);
+         }
+      } else {
+         signatureLog.info("No cached Azure Identity credentials are"
+            + " available, will retrieve new credentials");
+      }
+
+      /* Update the cached credentials */
+      refreshAzureIdentityCredential();
+      return accessToken;
+   }
+
+   private void refreshAzureIdentityCredential() throws HttpException {
       int status;
       String query;
+      String token;
+      int expiration;
       URL URLConnection;
       HttpURLConnection connection;
 
@@ -229,13 +262,18 @@ public class SharedKeyLiteAuthentication implements HttpRequestFilter {
          JsonParser parser = factory.createParser(responseStream);
 
          /* Parse the response */
+         token = null;
+         expiration = -1;
          while (!parser.isClosed()) {
              JsonToken jsonToken = parser.nextToken();
              if (JsonToken.FIELD_NAME.equals(jsonToken)){
                  String fieldName = parser.getCurrentName();
                  jsonToken = parser.nextToken();
                  if ("access_token".equals(fieldName)) {
-                     return parser.getValueAsString();
+                     token = parser.getValueAsString();
+                 }
+                 if ("expires_on".equals(fieldName)) {
+                     expiration = Integer.parseInt(parser.getValueAsString());
                  }
              }
          }
@@ -243,8 +281,18 @@ public class SharedKeyLiteAuthentication implements HttpRequestFilter {
          throw new HttpException("Failed to retrieve Azure Identity credentials:", e);
       }
 
-      throw new HttpException("Failed to retrieve Azure Identity access token"
-         + " from the response");
+      /* Ensure we retrieved both the token and expiration time */
+      if (token == null) {
+         throw new HttpException("Failed to parse access token from request body");
+      }
+      if (expiration < 0) {
+         throw new HttpException("Failed to parse expiration from request body");
+      }
+
+      /* Update the cached credentials */
+      accessToken = token;
+      accessTokenExpiresOn = expiration;
+      signatureLog.info("Successfully retrieved Azure Identity credentials");
    }
 
    /**
